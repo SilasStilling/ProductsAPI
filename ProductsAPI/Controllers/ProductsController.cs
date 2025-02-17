@@ -1,5 +1,10 @@
 ﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.FileSystemGlobbing;
 using WebShopLibrary;
+using WebShopLibrary.Database;
+
+
+
 
 namespace ProductsAPI.Controllers
 {
@@ -7,18 +12,19 @@ namespace ProductsAPI.Controllers
     [ApiController]
     public class ProductsController : ControllerBase
     {
-        private ProductRepository _productRepository;
-        public ProductsController(ProductRepository productRepository)
+        private ProductRepositoryDb _productRepository;
+        public ProductsController(ProductRepositoryDb productRepository)
         {
             _productRepository = productRepository;
         }
         // GET: api/<ProductsController>
         [ProducesResponseType(StatusCodes.Status200OK)]
-        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status204NoContent)]
         [HttpGet]
         public ActionResult<IEnumerable<Product>> GetAll()
         {
             var product = _productRepository.GetAll();
+            if (!product.Any()) return NoContent();
             return Ok(product);
         }
 
@@ -28,7 +34,7 @@ namespace ProductsAPI.Controllers
         [HttpGet("{id}")]
         public ActionResult<Product> GetById(int id)
         {
-            var product = _productRepository.GetById(id);
+            var product = _productRepository.Get(id);
             if (product == null)
             {
                 return NotFound();
@@ -53,23 +59,18 @@ namespace ProductsAPI.Controllers
             }
         }
 
-        // PUT api/<ProductsController>/5
-        [HttpPut("{id}")]
-        public void Put(int id, [FromBody] string value)
-        {
-        }
-
         // DELETE api/<ProductsController>/5
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         [HttpDelete("{id}")]
         public ActionResult<Product> Delete(int id)
         {
-            var product = _productRepository.Remove(id);
+            var product = _productRepository.Get(id); // Retrieve the product first
             if (product == null)
             {
                 return NotFound();
             }
+            _productRepository.Remove(id); // Perform the removal
             return Ok(product);
         }
     }
