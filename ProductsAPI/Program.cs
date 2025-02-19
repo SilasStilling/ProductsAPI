@@ -10,6 +10,10 @@ var connectionString = builder.Configuration.GetConnectionString("DefaultConnect
 // Registrerer DBConnection og WatchRepository som scoped services til dependency injection
 builder.Services.AddScoped<DBConnection>(provider => new DBConnection(connectionString));
 builder.Services.AddScoped<ProductRepositoryDb>();
+builder.Services.AddScoped<UserRepository>();
+
+// Registrerer AuthService som en scoped service
+builder.Services.AddScoped<AuthService>();
 
 builder.Services.AddCors(options =>
 {
