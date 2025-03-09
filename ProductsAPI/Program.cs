@@ -1,9 +1,30 @@
 using WebShopLibrary;
 using WebShopLibrary.Database;
 using Microsoft.OpenApi.Models;
+using System.Text;
+using Microsoft.IdentityModel.Tokens;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using System.IdentityModel.Tokens.Jwt;
 
 
 var builder = WebApplication.CreateBuilder(args);
+
+builder.Services.AddSingleton<JwtService>();
+
+var key = Encoding.ASCII.GetBytes("2XjMUiuCS6E06z!j679dGKIMRpK4wmqeL");
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        options.RequireHttpsMetadata = false;
+        options.SaveToken = true;
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuerSigningKey = true,
+            IssuerSigningKey = new SymmetricSecurityKey(key),
+            ValidateIssuer = false,
+            ValidateAudience = false
+        };
+    });
 
 // Henter connection string fra appsettings.json
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
@@ -53,6 +74,7 @@ app.Use(async (context, next) =>
 app.UseHsts(); // Aktiverer HSTS middleware altid, så det kan testes i både udvikling og produktion
 
 app.UseHttpsRedirection();
+app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 app.Run();

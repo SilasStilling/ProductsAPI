@@ -75,5 +75,25 @@ namespace ProductsAPI.Controllers
             _userRepository.Remove(id);
             return Ok(user);
         }
+
+        // POST api/<UsersController>/login
+        [HttpPost("login")]
+        public IActionResult Login([FromBody] User model, [FromServices] JwtService jwtService)
+        {
+            // Dummy user for demonstration purposes
+            var user = new User
+            {
+                Username = "test",
+                Password = "password",
+                Role = "User"
+            };
+
+            if (model.Username == user.Username && model.Password == user.Password)
+            {
+                var token = jwtService.GenerateToken(user);
+                return Ok(new { token });
+            }
+            return Unauthorized();
+        }
     }
 }
