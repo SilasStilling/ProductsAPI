@@ -4,6 +4,8 @@ using WebShopLibrary;
 using WebShopLibrary.Database;
 using System.Security.Cryptography;
 using Konscious.Security.Cryptography;
+using System.Text;
+
 
 
 
@@ -80,20 +82,40 @@ namespace ProductsAPI.Controllers
         [HttpPost("login")]
         public IActionResult Login([FromBody] User model, [FromServices] JwtService jwtService)
         {
-            // Dummy user for demonstration purposes
-            var user = new User
-            {
-                Username = "test",
-                Password = "password",
-                Role = "User"
-            };
+            var user = _userRepository.GetAll().FirstOrDefault(u => u.Username == model.Username);
 
-            if (model.Username == user.Username && model.Password == user.Password)
+            if (user == null || !VerifyPassword(model.Password, user.Password))
             {
-                var token = jwtService.GenerateToken(user);
-                return Ok(new { token });
+                return Unauthorized();
             }
-            return Unauthorized();
+
+            var token = jwtService.GenerateToken(user);
+            return Ok(new { token });
+        }
+
+        private bool VerifyPassword(string enteredPassword, string storedPassword)
+        {
+            var storedPasswordBytes = Convert.FromBase64String(storedPassword);
+            var salt = new byte[16];
+            Buffer.BlockCopy(storedPasswordBytes, 0, salt, 0, salt.Length);
+
+            using (var argon2 = new Argon2id(Encoding.UTF8.GetBytes(enteredPassword)))
+            {
+                argon2.Salt = salt;
+                argon2.DegreeOfParallelism = 8;
+                argon2.MemorySize = 65536;
+                argon2.Iterations = 4;
+
+                var hash = argon2.GetBytes(32);
+                for (int i = 0; i < hash.Length; i++)
+                {
+                    if (hash[i] != storedPasswordBytes[salt.Length + i])
+                    {
+                        return false;
+                    }
+                }
+            }
+            return true;
         }
     }
 }

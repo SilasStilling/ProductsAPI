@@ -36,38 +36,38 @@ namespace ProductsAPI.Controllers
         }
 
         // POST api/<ProductsController>
-        [HttpPost]
-        public async Task<ActionResult<Product>> Post([FromForm] string name, [FromForm] string model, [FromForm] double price, [FromForm] IFormFile? file)
-        {
-            try
-            {
-                if (file == null || file.Length == 0)
-                    return BadRequest("No file uploaded.");
+        //[HttpPost]
+        //public async Task<ActionResult<Product>> Post([FromForm] string name, [FromForm] string model, [FromForm] double price, [FromForm] IFormFile? file)
+        //{
+        //    try
+        //    {
+        //        if (file == null || file.Length == 0)
+        //            return BadRequest("No file uploaded.");
 
-                // Read the file as binary data
-                byte[] fileData;
-                using (var memoryStream = new MemoryStream())
-                {
-                    await file.CopyToAsync(memoryStream);
-                    fileData = memoryStream.ToArray();
-                }
+        //        // Read the file as binary data
+        //        byte[] fileData;
+        //        using (var memoryStream = new MemoryStream())
+        //        {
+        //            await file.CopyToAsync(memoryStream);
+        //            fileData = memoryStream.ToArray();
+        //        }
 
-                var newProduct = new Product
-                {
-                    Name = name,
-                    Model = model, // Replace with actual model value
-                    Price = price, // Replace with actual price value
-                    ImageData = fileData
-                };
+        //        var newProduct = new Product
+        //        {
+        //            Name = name,
+        //            Model = model, // Replace with actual model value
+        //            Price = price, // Replace with actual price value
+        //            ImageData = fileData
+        //        };
 
-                var createdProduct = _productRepository.Add(newProduct);
-                return CreatedAtAction(nameof(GetById), new { id = createdProduct.Id }, createdProduct);
-            }
-            catch (ArgumentException ex)
-            {
-                return BadRequest(ex.Message);
-            }
-        }
+        //        var createdProduct = _productRepository.Add(newProduct);
+        //        return CreatedAtAction(nameof(GetById), new { id = createdProduct.Id }, createdProduct);
+        //    }
+        //    catch (ArgumentException ex)
+        //    {
+        //        return BadRequest(ex.Message);
+        //    }
+        //}
 
 
         // DELETE api/<ProductsController>/5
