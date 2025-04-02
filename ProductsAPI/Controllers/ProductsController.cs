@@ -69,6 +69,26 @@ namespace ProductsAPI.Controllers
             }
         }
 
+        // PUT api/<ProductsController>/5
+        [HttpPut("{id}")]
+        public ActionResult<Product> Put(int id, [FromForm] string name, [FromForm] string model, [FromForm] double price, [FromForm] IFormFile? file)
+        {
+            var product = _productRepository.Get(id);
+            if (product == null) return NotFound();
+
+            product.Name = name;
+            product.Model = model;
+            product.Price = price;
+
+            if (file != null)
+            {
+                product.ImageData = ConvertToByteArray(file).Result;
+            }
+
+            _productRepository.Update(product);
+            return Ok(product);
+        }
+
 
         // DELETE api/<ProductsController>/5
         [HttpDelete("{id}")]
