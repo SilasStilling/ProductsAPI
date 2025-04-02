@@ -90,7 +90,11 @@ namespace ProductsAPI.Controllers
             }
 
             var token = jwtService.GenerateToken(user);
-            return Ok(new { token });
+            return Ok(new
+            {
+                token,
+                role = user.Role 
+            });
         }
 
         private bool VerifyPassword(string enteredPassword, string storedPassword)
