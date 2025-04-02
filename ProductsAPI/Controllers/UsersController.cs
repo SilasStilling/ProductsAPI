@@ -63,6 +63,25 @@ namespace ProductsAPI.Controllers
             }
         }
 
+        // PUT api/<UsersController>
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [HttpPut]
+        public ActionResult<User> Put([FromBody] User user)
+        {
+            try
+            {
+                var updatedUser = _userRepository.Update(user);
+                return Ok(updatedUser);
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(ex.Message);
+            }
+        }
+
+
+
         // DELETE api/<UsersController>/5
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -97,6 +116,35 @@ namespace ProductsAPI.Controllers
             });
         }
 
+        // PUT api/<UsersController>/change-password
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [HttpPut("change-password")]
+        public ActionResult ChangePassword([FromBody] ChangePasswordModel model)
+        {
+            var username = User.Identity?.Name;
+            if (string.IsNullOrEmpty(username))
+            {
+                return BadRequest("User is not authenticated.");
+            }
+
+            var user = _userRepository.GetAll().FirstOrDefault(u => u.Username == username);
+            if (user == null || string.IsNullOrEmpty(model.OldPassword) || !VerifyPassword(model.OldPassword, user.Password))
+            {
+                return BadRequest("Old password is incorrect.");
+            }
+
+            if (model.NewPassword != model.ConfirmPassword)
+            {
+                return BadRequest("New password and confirm password do not match.");
+            }
+
+            user.Password = HashPassword(model.NewPassword);
+            _userRepository.Update(user);
+
+            return Ok("Password changed successfully.");
+        }
+
         private bool VerifyPassword(string enteredPassword, string storedPassword)
         {
             var storedPasswordBytes = Convert.FromBase64String(storedPassword);
@@ -120,6 +168,30 @@ namespace ProductsAPI.Controllers
                 }
             }
             return true;
+        }
+
+        private string HashPassword(string password)
+        {
+            var salt = new byte[16];
+            using (var rng = new RNGCryptoServiceProvider())
+            {
+                rng.GetBytes(salt);
+            }
+
+            using (var argon2 = new Argon2id(Encoding.UTF8.GetBytes(password)))
+            {
+                argon2.Salt = salt;
+                argon2.DegreeOfParallelism = 8;
+                argon2.MemorySize = 65536;
+                argon2.Iterations = 4;
+
+                var hash = argon2.GetBytes(32);
+                var hashBytes = new byte[48];
+                Buffer.BlockCopy(salt, 0, hashBytes, 0, salt.Length);
+                Buffer.BlockCopy(hash, 0, hashBytes, salt.Length, hash.Length);
+
+                return Convert.ToBase64String(hashBytes);
+            }
         }
     }
 }
