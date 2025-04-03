@@ -15,6 +15,10 @@ namespace ProductsAPI.Controllers
     [ApiController]
     public class UsersController : ControllerBase
     {
+        private static Dictionary<string, (int Attempts, DateTime? LockoutTime)> _loginAttempts = new();
+        private const int MaxAttempts = 5;
+        private const int LockoutMinutes = 5;
+
         private UserRepository _userRepository;
         public UsersController(UserRepository userRepository)
         {
@@ -103,21 +107,45 @@ namespace ProductsAPI.Controllers
         {
             var user = _userRepository.GetAll().FirstOrDefault(u => u.Username == model.Username);
 
+            if (!_loginAttempts.ContainsKey(model.Username))
+                _loginAttempts[model.Username] = (0, null);
+
+            var (attempts, lockoutTime) = _loginAttempts[model.Username];
+
+            // 🚫 Tjek om brugeren er låst ude
+            if (lockoutTime.HasValue && lockoutTime > DateTime.UtcNow)
+            {
+                return StatusCode(429, new { message = $"For mange forsøg! Prøv igen om {lockoutTime.Value - DateTime.UtcNow:mm} minutter." });
+            }
+
+            // 🚫 Hvis kodeordet er forkert, øg forsøgs-tælleren
             if (user == null || !VerifyPassword(model.Password, user.Password))
             {
-                return Unauthorized();
+                attempts++;
+
+                if (attempts >= MaxAttempts)
+                {
+                    _loginAttempts[model.Username] = (attempts, DateTime.UtcNow.AddMinutes(LockoutMinutes));
+                    return StatusCode(429, new { message = $"For mange mislykkede forsøg! Kontoen er låst i {LockoutMinutes} minutter." });
+                }
+
+                _loginAttempts[model.Username] = (attempts, null);
+                return Unauthorized(new { message = "Forkert brugernavn eller kodeord." });
             }
+
+            // ✅ Ryd forsøgs-tælleren, hvis login lykkes
+            _loginAttempts[model.Username] = (0, null);
 
             var token = jwtService.GenerateToken(user);
             return Ok(new
             {
                 token,
-                role = user.Role 
+                role = user.Role
             });
         }
 
-        // PUT api/<UsersController>/change-password
-        [ProducesResponseType(StatusCodes.Status200OK)]
+            // PUT api/<UsersController>/change-password
+            [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [HttpPut("change-password")]
         public ActionResult ChangePassword([FromBody] ChangePasswordModel model)
