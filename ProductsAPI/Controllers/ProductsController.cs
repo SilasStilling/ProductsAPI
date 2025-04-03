@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Http;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.IdentityModel.Tokens;
 using WebShopLibrary;
@@ -36,45 +37,44 @@ namespace ProductsAPI.Controllers
         }
 
         // POST api/<ProductsController>
+        [Authorize(Roles = "admin")]
         [HttpPost]
         public async Task<ActionResult<Product>> Post([FromForm] string name, [FromForm] string model, [FromForm] double price, [FromForm] IFormFile? file)
         {
+            if (string.IsNullOrWhiteSpace(name) || string.IsNullOrWhiteSpace(model) || price <= 0)
+                return BadRequest("Invalid product data.");
+
             try
             {
-                if (file == null || file.Length == 0)
-                    return BadRequest("No file uploaded.");
-
-                // Read the file as binary data
-                byte[] fileData;
-                using (var memoryStream = new MemoryStream())
-                {
-                    await file.CopyToAsync(memoryStream);
-                    fileData = memoryStream.ToArray();
-                }
+                byte[] fileData = file != null ? await ConvertToByteArray(file) : new byte[0];
 
                 var newProduct = new Product
                 {
                     Name = name,
-                    Model = model, // Replace with actual model value
-                    Price = price, // Replace with actual price value
+                    Model = model,
+                    Price = price,
                     ImageData = fileData
                 };
 
                 var createdProduct = _productRepository.Add(newProduct);
                 return CreatedAtAction(nameof(GetById), new { id = createdProduct.Id }, createdProduct);
             }
-            catch (ArgumentException ex)
+            catch (Exception ex)
             {
-                return BadRequest(ex.Message);
+                return BadRequest($"Error: {ex.Message}");
             }
         }
 
         // PUT api/<ProductsController>/5
+        [Authorize(Roles = "admin")]
         [HttpPut("{id}")]
-        public ActionResult<Product> Put(int id, [FromForm] string name, [FromForm] string model, [FromForm] double price, [FromForm] IFormFile? file)
+        public async Task<ActionResult<Product>> Put(int id, [FromForm] string name, [FromForm] string model, [FromForm] double price, [FromForm] IFormFile? file)
         {
             var product = _productRepository.Get(id);
             if (product == null) return NotFound();
+
+            if (string.IsNullOrWhiteSpace(name) || string.IsNullOrWhiteSpace(model) || price <= 0)
+                return BadRequest("Invalid product data.");
 
             product.Name = name;
             product.Model = model;
@@ -82,7 +82,7 @@ namespace ProductsAPI.Controllers
 
             if (file != null)
             {
-                product.ImageData = ConvertToByteArray(file).Result;
+                product.ImageData = await ConvertToByteArray(file);
             }
 
             _productRepository.Update(product);
@@ -91,6 +91,7 @@ namespace ProductsAPI.Controllers
 
 
         // DELETE api/<ProductsController>/5
+        [Authorize(Roles = "admin")]
         [HttpDelete("{id}")]
         public ActionResult<Product> Delete(int id)
         {
@@ -102,8 +103,6 @@ namespace ProductsAPI.Controllers
 
         private async Task<byte[]> ConvertToByteArray(IFormFile file)
         {
-            if (file == null) return null!; // Use null-forgiving operator to suppress warning
-
             using (var memoryStream = new MemoryStream())
             {
                 await file.CopyToAsync(memoryStream);

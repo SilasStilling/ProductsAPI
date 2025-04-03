@@ -15,7 +15,7 @@
 
   <ItemGroup>
     <Reference Include="WebShopLibrary">
-      <HintPath>..\..\Repo\WebShopLibrary\bin\Debug\net8.0\WebShopLibrary.dll</HintPath>
+      <HintPath>..\..\..\Libary\WebShopLibrary\WebShopLibrary\bin\Debug\net8.0\WebShopLibrary.dll</HintPath>
     </Reference>
   </ItemGroup>
 

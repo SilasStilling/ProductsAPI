@@ -5,6 +5,7 @@ using WebShopLibrary.Database;
 using System.Security.Cryptography;
 using Konscious.Security.Cryptography;
 using System.Text;
+using Microsoft.AspNetCore.Authorization;
 
 
 
@@ -28,48 +29,46 @@ namespace ProductsAPI.Controllers
         // GET: api/<UsersController>
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status204NoContent)]
+        [Authorize(Roles = "admin")]
         [HttpGet]
-        public ActionResult<User> GetAll()
+        public ActionResult<IEnumerable<User>> GetAll()
         {
-            var user = _userRepository.GetAll();
-            if (!user.Any()) return NoContent();
-            return Ok(user);
+            var users = _userRepository.GetAll();
+            if (!users.Any()) return NoContent();
+            return Ok(users);
         }
 
         // GET api/<UsersController>/5
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [Authorize]
         [HttpGet("{id}")]
         public ActionResult<User> Get(int id)
         {
             var user = _userRepository.Get(id);
-            if (user == null)
-            {
-                return NotFound();
-            }
+            if (user == null) return NotFound();
             return Ok(user);
         }
 
         // POST api/<UsersController>
         [ProducesResponseType(StatusCodes.Status201Created)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [AllowAnonymous]
         [HttpPost]
-        public ActionResult<User> Post([FromBody] User newUser)
+        public ActionResult<User> Register([FromBody] User newUser)
         {
-            try
-            {
-                var createdUser = _userRepository.Add(newUser);
-                return CreatedAtAction(nameof(Get), new { id = createdUser.Id }, createdUser);
-            }
-            catch (ArgumentException ex)
-            {
-                return BadRequest(ex.Message);
-            }
+            if (string.IsNullOrWhiteSpace(newUser.Username) || string.IsNullOrWhiteSpace(newUser.Password))
+                return BadRequest("Username and password are required.");
+
+            newUser.Password = HashPassword(newUser.Password);
+            var createdUser = _userRepository.Add(newUser);
+            return CreatedAtAction(nameof(Get), new { id = createdUser.Id }, createdUser);
         }
 
         // PUT api/<UsersController>
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [Authorize(Roles = "admin")]
         [HttpPut]
         public ActionResult<User> Put([FromBody] User user)
         {
@@ -89,14 +88,12 @@ namespace ProductsAPI.Controllers
         // DELETE api/<UsersController>/5
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [Authorize(Roles = "Admin")]
         [HttpDelete("{id}")]
         public ActionResult<User> Delete(int id)
         {
-            var user = _userRepository.Get(id); // Retrieve the user first
-            if (user == null)
-            {
-                return NotFound();
-            }
+            var user = _userRepository.Get(id);
+            if (user == null) return NotFound();
             _userRepository.Remove(id);
             return Ok(user);
         }
