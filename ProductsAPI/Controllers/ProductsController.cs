@@ -36,61 +36,61 @@ namespace ProductsAPI.Controllers
             return Ok(product);
         }
 
-        //// POST api/<ProductsController>
-        //[Authorize(Roles = "admin")]
-        //[HttpPost]
-        //public async Task<ActionResult<Product>> Post([FromForm] string name, [FromForm] string model, [FromForm] double price, [FromForm] IFormFile? file)
-        //{
-        //    try
-        //    {
-        //        if (file == null || file.Length == 0)
-        //            return BadRequest("No file uploaded.");
+        // POST api/<ProductsController>
+        [Authorize(Roles = "admin")]
+        [HttpPost]
+        public async Task<ActionResult<Product>> Post([FromForm] string name, [FromForm] string model, [FromForm] double price, [FromForm] IFormFile? file)
+        {
+            try
+            {
+                if (file == null || file.Length == 0)
+                    return BadRequest("No file uploaded.");
 
-        //        // Read the file as binary data
-        //        byte[] fileData;
-        //        using (var memoryStream = new MemoryStream())
-        //        {
-        //            await file.CopyToAsync(memoryStream);
-        //            fileData = memoryStream.ToArray();
-        //        }
+                // Read the file as binary data
+                byte[] fileData;
+                using (var memoryStream = new MemoryStream())
+                {
+                    await file.CopyToAsync(memoryStream);
+                    fileData = memoryStream.ToArray();
+                }
 
-        //        var newProduct = new Product
-        //        {
-        //            Name = name,
-        //            Model = model, 
-        //            Price = price, 
-        //            ImageData = fileData
-        //        };
+                var newProduct = new Product
+                {
+                    Name = name,
+                    Model = model,
+                    Price = price,
+                    ImageData = fileData
+                };
 
-        //        var createdProduct = _productRepository.Add(newProduct);
-        //        return CreatedAtAction(nameof(GetById), new { id = createdProduct.Id }, createdProduct);
-        //    }
-        //    catch (ArgumentException ex)
-        //    {
-        //        return BadRequest(ex.Message);
-        //    }
-        //}
+                var createdProduct = _productRepository.Add(newProduct);
+                return CreatedAtAction(nameof(GetById), new { id = createdProduct.Id }, createdProduct);
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(ex.Message);
+            }
+        }
 
-        //// PUT api/<ProductsController>/5
-        //[Authorize(Roles = "admin")]
-        //[HttpPut("{id}")]
-        //public ActionResult<Product> Put(int id, [FromForm] string name, [FromForm] string model, [FromForm] double price, [FromForm] IFormFile? file)
-        //{
-        //    var product = _productRepository.Get(id);
-        //    if (product == null) return NotFound();
+        // PUT api/<ProductsController>/5
+        [Authorize(Roles = "admin")]
+        [HttpPut("{id}")]
+        public ActionResult<Product> Put(int id, [FromForm] string name, [FromForm] string model, [FromForm] double price, [FromForm] IFormFile? file)
+        {
+            var product = _productRepository.Get(id);
+            if (product == null) return NotFound();
 
-        //    product.Name = name;
-        //    product.Model = model;
-        //    product.Price = price;
+            product.Name = name;
+            product.Model = model;
+            product.Price = price;
 
-        //    if (file != null)
-        //    {
-        //        product.ImageData = ConvertToByteArray(file).Result;
-        //    }
+            if (file != null)
+            {
+                product.ImageData = ConvertToByteArray(file).Result;
+            }
 
-        //    _productRepository.Update(product);
-        //    return Ok(product);
-        //}
+            _productRepository.Update(product);
+            return Ok(product);
+        }
 
 
         // DELETE api/<ProductsController>/5
