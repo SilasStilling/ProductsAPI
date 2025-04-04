@@ -41,40 +41,43 @@ namespace ProductsAPI.Controllers
         [HttpPost]
         public async Task<ActionResult<Product>> Post([FromForm] string name, [FromForm] string model, [FromForm] double price, [FromForm] IFormFile? file)
         {
-            if (string.IsNullOrWhiteSpace(name) || string.IsNullOrWhiteSpace(model) || price <= 0)
-                return BadRequest("Invalid product data.");
-
             try
             {
-                byte[] fileData = file != null ? await ConvertToByteArray(file) : new byte[0];
+                if (file == null || file.Length == 0)
+                    return BadRequest("No file uploaded.");
+
+                // Read the file as binary data
+                byte[] fileData;
+                using (var memoryStream = new MemoryStream())
+                {
+                    await file.CopyToAsync(memoryStream);
+                    fileData = memoryStream.ToArray();
+                }
 
                 var newProduct = new Product
                 {
                     Name = name,
-                    Model = model,
-                    Price = price,
+                    Model = model, 
+                    Price = price, 
                     ImageData = fileData
                 };
 
                 var createdProduct = _productRepository.Add(newProduct);
                 return CreatedAtAction(nameof(GetById), new { id = createdProduct.Id }, createdProduct);
             }
-            catch (Exception ex)
+            catch (ArgumentException ex)
             {
-                return BadRequest($"Error: {ex.Message}");
+                return BadRequest(ex.Message);
             }
         }
 
         // PUT api/<ProductsController>/5
         [Authorize(Roles = "admin")]
         [HttpPut("{id}")]
-        public async Task<ActionResult<Product>> Put(int id, [FromForm] string name, [FromForm] string model, [FromForm] double price, [FromForm] IFormFile? file)
+        public ActionResult<Product> Put(int id, [FromForm] string name, [FromForm] string model, [FromForm] double price, [FromForm] IFormFile? file)
         {
             var product = _productRepository.Get(id);
             if (product == null) return NotFound();
-
-            if (string.IsNullOrWhiteSpace(name) || string.IsNullOrWhiteSpace(model) || price <= 0)
-                return BadRequest("Invalid product data.");
 
             product.Name = name;
             product.Model = model;
@@ -82,7 +85,7 @@ namespace ProductsAPI.Controllers
 
             if (file != null)
             {
-                product.ImageData = await ConvertToByteArray(file);
+                product.ImageData = ConvertToByteArray(file).Result;
             }
 
             _productRepository.Update(product);
