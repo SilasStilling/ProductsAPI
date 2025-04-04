@@ -25,7 +25,7 @@ namespace ProductsAPI.Controllers
         // GET: api/<UsersController>
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status204NoContent)]
-        [Authorize(Roles = "admin")]
+        //[Authorize(Roles = "admin")]
         [HttpGet]
         public ActionResult<IEnumerable<User>> GetAll()
         {
@@ -37,7 +37,7 @@ namespace ProductsAPI.Controllers
         // GET api/<UsersController>/5
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
-        [Authorize(Roles = "admin")]
+        //[Authorize(Roles = "admin")]
         [HttpGet("{id}")]
         public ActionResult<User> Get(int id)
         {
