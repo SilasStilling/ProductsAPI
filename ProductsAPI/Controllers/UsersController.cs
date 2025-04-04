@@ -1,14 +1,10 @@
 ﻿using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.FileSystemGlobbing;
 using WebShopLibrary;
 using WebShopLibrary.Database;
 using System.Security.Cryptography;
 using Konscious.Security.Cryptography;
 using System.Text;
 using Microsoft.AspNetCore.Authorization;
-
-
-
 
 namespace ProductsAPI.Controllers
 {
@@ -41,7 +37,7 @@ namespace ProductsAPI.Controllers
         // GET api/<UsersController>/5
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
-        [Authorize]
+        [Authorize(Roles = "admin")]
         [HttpGet("{id}")]
         public ActionResult<User> Get(int id)
         {
@@ -60,7 +56,6 @@ namespace ProductsAPI.Controllers
             if (string.IsNullOrWhiteSpace(newUser.Username) || string.IsNullOrWhiteSpace(newUser.Password))
                 return BadRequest("Username and password are required.");
 
-            newUser.Password = HashPassword(newUser.Password);
             var createdUser = _userRepository.Add(newUser);
             return CreatedAtAction(nameof(Get), new { id = createdUser.Id }, createdUser);
         }
@@ -83,8 +78,6 @@ namespace ProductsAPI.Controllers
             }
         }
 
-
-
         // DELETE api/<UsersController>/5
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -99,6 +92,10 @@ namespace ProductsAPI.Controllers
         }
 
         // POST api/<UsersController>/login
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(StatusCodes.Status429TooManyRequests)]
+        [AllowAnonymous]
         [HttpPost("login")]
         public IActionResult Login([FromBody] User model, [FromServices] JwtService jwtService)
         {
@@ -109,13 +106,11 @@ namespace ProductsAPI.Controllers
 
             var (attempts, lockoutTime) = _loginAttempts[model.Username];
 
-            // 🚫 Tjek om brugeren er låst ude
             if (lockoutTime.HasValue && lockoutTime > DateTime.UtcNow)
             {
-                return StatusCode(429, new { message = $"For mange forsøg! Prøv igen om {lockoutTime.Value - DateTime.UtcNow:mm} minutter." });
+                return StatusCode(429, new { message = $"For mange forsøg! Prøv igen om {(lockoutTime.Value - DateTime.UtcNow).Minutes} minutter." });
             }
 
-            // 🚫 Hvis kodeordet er forkert, øg forsøgs-tælleren
             if (user == null || !VerifyPassword(model.Password, user.Password))
             {
                 attempts++;
@@ -130,7 +125,6 @@ namespace ProductsAPI.Controllers
                 return Unauthorized(new { message = "Forkert brugernavn eller kodeord." });
             }
 
-            // ✅ Ryd forsøgs-tælleren, hvis login lykkes
             _loginAttempts[model.Username] = (0, null);
 
             var token = jwtService.GenerateToken(user);
@@ -141,8 +135,8 @@ namespace ProductsAPI.Controllers
             });
         }
 
-            // PUT api/<UsersController>/change-password
-            [ProducesResponseType(StatusCodes.Status200OK)]
+        // PUT api/<UsersController>/change-password
+        [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [HttpPut("change-password")]
         public ActionResult ChangePassword([FromBody] ChangePasswordModel model)
@@ -172,27 +166,34 @@ namespace ProductsAPI.Controllers
 
         private bool VerifyPassword(string enteredPassword, string storedPassword)
         {
-            var storedPasswordBytes = Convert.FromBase64String(storedPassword);
-            var salt = new byte[16];
-            Buffer.BlockCopy(storedPasswordBytes, 0, salt, 0, salt.Length);
-
-            using (var argon2 = new Argon2id(Encoding.UTF8.GetBytes(enteredPassword)))
+            try
             {
-                argon2.Salt = salt;
-                argon2.DegreeOfParallelism = 8;
-                argon2.MemorySize = 65536;
-                argon2.Iterations = 4;
+                var storedPasswordBytes = Convert.FromBase64String(storedPassword);
+                var salt = new byte[16];
+                Buffer.BlockCopy(storedPasswordBytes, 0, salt, 0, salt.Length);
 
-                var hash = argon2.GetBytes(32);
-                for (int i = 0; i < hash.Length; i++)
+                using (var argon2 = new Argon2id(Encoding.UTF8.GetBytes(enteredPassword)))
                 {
-                    if (hash[i] != storedPasswordBytes[salt.Length + i])
+                    argon2.Salt = salt;
+                    argon2.DegreeOfParallelism = 8;
+                    argon2.MemorySize = 65536;
+                    argon2.Iterations = 4;
+
+                    var hash = argon2.GetBytes(32);
+                    for (int i = 0; i < hash.Length; i++)
                     {
-                        return false;
+                        if (hash[i] != storedPasswordBytes[salt.Length + i])
+                        {
+                            return false;
+                        }
                     }
                 }
+                return true;
             }
-            return true;
+            catch
+            {
+                return false;
+            }
         }
 
         private string HashPassword(string password)
