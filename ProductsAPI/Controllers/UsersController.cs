@@ -93,25 +93,29 @@ namespace ProductsAPI.Controllers
         [ProducesResponseType(StatusCodes.Status429TooManyRequests)]
         [AllowAnonymous]
         [HttpPost("login")]
-        public IActionResult Login([FromBody] User model, [FromServices] JwtService jwtService)
+        public async Task<IActionResult> Login([FromBody] User model, [FromServices] JwtService jwtService, [FromServices] AuthService authService)
         {
-            var user = _userRepository.GetAll().FirstOrDefault(u => u.Username == model.Username);
-
-            if (user == null || !VerifyPassword(model.Password, user.Password))
+            try
             {
-                _logService.LogAsync("LoginAttempt", model.Username, "Failed").Wait();
-                return Unauthorized(new { message = "Forkert brugernavn eller kodeord." });
+                var user = await authService.Login(model.Username, model.Password);
+                var token = jwtService.GenerateToken(user);
+                return Ok(new
+                {
+                    token,
+                    role = user.Role
+                });
             }
-
-            var token = jwtService.GenerateToken(user);
-            _logService.LogAsync("LoginAttempt", model.Username, "Success").Wait();
-
-            return Ok(new
+            catch (Exception ex)
             {
-                token,
-                role = user.Role
-            });
+                if (ex.Message.Contains("locked"))
+                {
+                    return StatusCode(429, new { message = ex.Message });
+                }
+
+                return Unauthorized(new { message = ex.Message });
+            }
         }
+
 
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
