@@ -12,17 +12,15 @@ namespace ProductsAPI.Controllers
     [ApiController]
     public class UsersController : ControllerBase
     {
-        private static Dictionary<string, (int Attempts, DateTime? LockoutTime)> _loginAttempts = new();
-        private const int MaxAttempts = 5;
-        private const int LockoutMinutes = 5;
+        private readonly UserRepository _userRepository;
+        private readonly LogService _logService;
 
-        private UserRepository _userRepository;
-        public UsersController(UserRepository userRepository)
+        public UsersController(UserRepository userRepository, LogService logService)
         {
             _userRepository = userRepository;
+            _logService = logService;
         }
 
-        // GET: api/<UsersController>
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status204NoContent)]
         [Authorize(Roles = "admin")]
@@ -34,7 +32,6 @@ namespace ProductsAPI.Controllers
             return Ok(users);
         }
 
-        // GET api/<UsersController>/5
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         [Authorize(Roles = "admin")]
@@ -46,7 +43,6 @@ namespace ProductsAPI.Controllers
             return Ok(user);
         }
 
-        // POST api/<UsersController>
         [ProducesResponseType(StatusCodes.Status201Created)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [AllowAnonymous]
@@ -57,10 +53,10 @@ namespace ProductsAPI.Controllers
                 return BadRequest("Username and password are required.");
 
             var createdUser = _userRepository.Add(newUser);
+            _logService.LogAsync("RegisterUser", newUser.Username, "Success").Wait();
             return CreatedAtAction(nameof(Get), new { id = createdUser.Id }, createdUser);
         }
 
-        // PUT api/<UsersController>
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [Authorize(Roles = "admin")]
@@ -70,6 +66,7 @@ namespace ProductsAPI.Controllers
             try
             {
                 var updatedUser = _userRepository.Update(user);
+                _logService.LogAsync("UpdateUser", User.Identity?.Name ?? "Anonymous", "Success").Wait();
                 return Ok(updatedUser);
             }
             catch (ArgumentException ex)
@@ -78,7 +75,6 @@ namespace ProductsAPI.Controllers
             }
         }
 
-        // DELETE api/<UsersController>/5
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         [Authorize(Roles = "Admin")]
@@ -88,10 +84,10 @@ namespace ProductsAPI.Controllers
             var user = _userRepository.Get(id);
             if (user == null) return NotFound();
             _userRepository.Remove(id);
+            _logService.LogAsync("DeleteUser", User.Identity?.Name ?? "Anonymous", "Success").Wait();
             return Ok(user);
         }
 
-        // POST api/<UsersController>/login
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
         [ProducesResponseType(StatusCodes.Status429TooManyRequests)]
@@ -101,33 +97,15 @@ namespace ProductsAPI.Controllers
         {
             var user = _userRepository.GetAll().FirstOrDefault(u => u.Username == model.Username);
 
-            if (!_loginAttempts.ContainsKey(model.Username))
-                _loginAttempts[model.Username] = (0, null);
-
-            var (attempts, lockoutTime) = _loginAttempts[model.Username];
-
-            if (lockoutTime.HasValue && lockoutTime > DateTime.UtcNow)
-            {
-                return StatusCode(429, new { message = $"For mange forsøg! Prøv igen om {(lockoutTime.Value - DateTime.UtcNow).Minutes} minutter." });
-            }
-
             if (user == null || !VerifyPassword(model.Password, user.Password))
             {
-                attempts++;
-
-                if (attempts >= MaxAttempts)
-                {
-                    _loginAttempts[model.Username] = (attempts, DateTime.UtcNow.AddMinutes(LockoutMinutes));
-                    return StatusCode(429, new { message = $"For mange mislykkede forsøg! Kontoen er låst i {LockoutMinutes} minutter." });
-                }
-
-                _loginAttempts[model.Username] = (attempts, null);
+                _logService.LogAsync("LoginAttempt", model.Username, "Failed").Wait();
                 return Unauthorized(new { message = "Forkert brugernavn eller kodeord." });
             }
 
-            _loginAttempts[model.Username] = (0, null);
-
             var token = jwtService.GenerateToken(user);
+            _logService.LogAsync("LoginAttempt", model.Username, "Success").Wait();
+
             return Ok(new
             {
                 token,
@@ -135,7 +113,6 @@ namespace ProductsAPI.Controllers
             });
         }
 
-        // PUT api/<UsersController>/change-password
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [HttpPut("change-password")]
@@ -160,6 +137,7 @@ namespace ProductsAPI.Controllers
 
             user.Password = HashPassword(model.NewPassword);
             _userRepository.Update(user);
+            _logService.LogAsync("ChangePassword", username, "Success").Wait();
 
             return Ok("Password changed successfully.");
         }

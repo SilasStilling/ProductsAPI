@@ -1,7 +1,6 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.IdentityModel.Tokens;
 using WebShopLibrary;
 using WebShopLibrary.Database;
 
@@ -12,11 +11,15 @@ namespace ProductsAPI.Controllers
     public class ProductsController : ControllerBase
     {
         private readonly ProductRepositoryDb _productRepository;
+        private readonly LogService _logService;
 
-        public ProductsController(ProductRepositoryDb productRepository)
+        public ProductsController(ProductRepositoryDb productRepository, LogService logService)
         {
             _productRepository = productRepository;
+            _logService = logService;
         }
+
+        private string GetCurrentUsername() => User.Identity?.Name ?? "Anonymous";
 
         // GET: api/<ProductsController>
         [HttpGet]
@@ -32,7 +35,12 @@ namespace ProductsAPI.Controllers
         public ActionResult<Product> GetById(int id)
         {
             var product = _productRepository.Get(id);
-            if (product == null) return NotFound();
+            if (product == null)
+            {
+                _logService.LogAsync("GetProductById", GetCurrentUsername(), "Failed", "NotFound").Wait();
+                return NotFound();
+            }
+            _logService.LogAsync("GetProductById", GetCurrentUsername(), "Success").Wait();
             return Ok(product);
         }
 
@@ -46,7 +54,6 @@ namespace ProductsAPI.Controllers
                 if (file == null || file.Length == 0)
                     return BadRequest("No file uploaded.");
 
-                // Read the file as binary data
                 byte[] fileData;
                 using (var memoryStream = new MemoryStream())
                 {
@@ -63,10 +70,12 @@ namespace ProductsAPI.Controllers
                 };
 
                 var createdProduct = _productRepository.Add(newProduct);
+                await _logService.LogAsync("CreateProduct", GetCurrentUsername(), "Success");
                 return CreatedAtAction(nameof(GetById), new { id = createdProduct.Id }, createdProduct);
             }
             catch (ArgumentException ex)
             {
+                await _logService.LogAsync("CreateProduct", GetCurrentUsername(), "Failed", ex.Message);
                 return BadRequest(ex.Message);
             }
         }
@@ -74,10 +83,14 @@ namespace ProductsAPI.Controllers
         // PUT api/<ProductsController>/5
         [Authorize(Roles = "admin")]
         [HttpPut("{id}")]
-        public ActionResult<Product> Put(int id, [FromForm] string name, [FromForm] string model, [FromForm] double price, [FromForm] IFormFile? file)
+        public async Task<ActionResult<Product>> Put(int id, [FromForm] string name, [FromForm] string model, [FromForm] double price, [FromForm] IFormFile? file)
         {
             var product = _productRepository.Get(id);
-            if (product == null) return NotFound();
+            if (product == null)
+            {
+                await _logService.LogAsync("UpdateProduct", GetCurrentUsername(), "Failed", "NotFound");
+                return NotFound();
+            }
 
             product.Name = name;
             product.Model = model;
@@ -85,22 +98,27 @@ namespace ProductsAPI.Controllers
 
             if (file != null)
             {
-                product.ImageData = ConvertToByteArray(file).Result;
+                product.ImageData = await ConvertToByteArray(file);
             }
 
             _productRepository.Update(product);
+            await _logService.LogAsync("UpdateProduct", GetCurrentUsername(), "Success");
             return Ok(product);
         }
-
 
         // DELETE api/<ProductsController>/5
         [Authorize(Roles = "admin")]
         [HttpDelete("{id}")]
-        public ActionResult<Product> Delete(int id)
+        public async Task<ActionResult<Product>> Delete(int id)
         {
             var product = _productRepository.Get(id);
-            if (product == null) return NotFound();
+            if (product == null)
+            {
+                await _logService.LogAsync("DeleteProduct", GetCurrentUsername(), "Failed", "NotFound");
+                return NotFound();
+            }
             _productRepository.Remove(id);
+            await _logService.LogAsync("DeleteProduct", GetCurrentUsername(), "Success");
             return Ok(product);
         }
 

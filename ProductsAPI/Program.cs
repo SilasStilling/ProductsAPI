@@ -6,9 +6,9 @@ using Microsoft.IdentityModel.Tokens;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using System.IdentityModel.Tokens.Jwt;
 
-
 var builder = WebApplication.CreateBuilder(args);
 
+// JWT-service
 builder.Services.AddSingleton<JwtService>();
 
 var key = Encoding.ASCII.GetBytes("2XjMUiuCS6E06z!j679dGKIMRpK4wmqeL");
@@ -26,17 +26,24 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         };
     });
 
-// Henter connection string fra appsettings.json
+// Tilføj connection strings
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+var logConnectionString = builder.Configuration.GetConnectionString("LogConnection");
 
-// Registrerer DBConnection og WatchRepository som scoped services til dependency injection
-builder.Services.AddScoped<DBConnection>(provider => new DBConnection(connectionString));
+// Registrer databaser og services
+builder.Services.AddScoped<DBConnection>(_ => new DBConnection(connectionString));
+builder.Services.AddScoped<LogDBConnection>(_ => new LogDBConnection(logConnectionString));
+builder.Services.AddScoped<LogService>();
+
+// Repository og services med logning
 builder.Services.AddScoped<ProductRepositoryDb>();
 builder.Services.AddScoped<UserRepository>();
-
-// Registrerer AuthService som en scoped service
 builder.Services.AddScoped<AuthService>();
 
+// HTTP context (kræves for brugerdata i controllers)
+builder.Services.AddHttpContextAccessor();
+
+// CORS
 builder.Services.AddCors(options =>
 {
     options.AddPolicy(name: "AllowAll",
@@ -46,16 +53,17 @@ builder.Services.AddCors(options =>
                       });
 });
 
+// Swagger, controller osv.
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddControllers();
 
-// Tilføjer HSTS med specifikke indstillinger
+// HSTS
 builder.Services.AddHsts(options =>
 {
-    options.Preload = true; // Forhåndsindlæser HSTS til browsere
-    options.IncludeSubDomains = true; // Gælder for alle subdomæner
-    options.MaxAge = TimeSpan.FromDays(365); // Varighed på 365 dage
+    options.Preload = true;
+    options.IncludeSubDomains = true;
+    options.MaxAge = TimeSpan.FromDays(365);
 });
 
 var app = builder.Build();
@@ -64,15 +72,15 @@ app.UseSwagger();
 app.UseSwaggerUI();
 app.UseCors("AllowAll");
 
-// Tilføjer Content-Security-Policy i både udvikling og produktion, så sikkerhed kan testes
+// CSP headers
 app.Use(async (context, next) =>
 {
-    context.Response.Headers.Add("Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; object-src 'none'; frame-ancestors 'none'; upgrade-insecure-requests; base-uri 'self'"); // CSP beskytter mod XSS og andre angreb
+    context.Response.Headers.Add("Content-Security-Policy",
+        "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; object-src 'none'; frame-ancestors 'none'; upgrade-insecure-requests; base-uri 'self'");
     await next();
 });
 
-app.UseHsts(); // Aktiverer HSTS middleware altid, så det kan testes i både udvikling og produktion
-
+app.UseHsts();
 app.UseHttpsRedirection();
 app.UseAuthentication();
 app.UseAuthorization();
